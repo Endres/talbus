@@ -168,33 +168,54 @@ void mcp2515_bit_modify(uint8_t address, uint8_t mask, uint8_t data) {
   SPI_DISABLE();
 }
 
-extern uint8_t rx_counter = 0, tx_counter = 0;
+extern uint8_t rx_count = 0, tx_count = 0;
+extern uint8_t rx_first = 0, tx_first = 0;
 extern can_message rx_buffer[RX_BUFFER_COUNT], tx_buffer[TX_BUFFER_COUNT];
 
-ISR(/*TODO: Interrupt-Name */) {
-  uint8_t rx_status = mcp2515_rx_status();
-  if(rx_status & 0xC0) {
-    /* in which buffer,...? */
-    if(rx_counter < RX_BUFFER_COUNT) {
-      /*TODO: Fill buffer */
-      rx_counter++;
-    }
-  }
+ISR(INT0_vect) {
+  mcp2515_rx_loop();
 }
 
 void mcp2515_queue(can_message msg) {
-  if(tx_counter < TX_BUFFER_COUNT) {
-    /*TODO: Find free slot tx_buffer[i]... Implement real queue */
-    /* If no free slot available, loop mcp2515_loop() which is otherwise called by the overlaying loop function to not lose the message */
-    tx_buffer[i] = msg; 
-    tx_counter++;
+  while(tx_count >= TX_BUFFER_COUNT) {
+    mcp2515_loop();
+  }
+  tx_buffer[(tx_first + tx_count) % TX_BUFFER_COUNT] = msg;
+  tx_count++;
+}
+
+uint8_t led_status = 0;
+
+void mcp2515_rx_loop() {
+  uint8_t rx_status = mcp2515_rx_status();
+  uint8_t buffer;
+  if(led_status > 0) {
+    led_status++;
+    if(led_status == 0) {
+      SPI_PORT &= ~(1 << LED_PIN);
+    }
+  }
+  
+  if(rx_status & 0x40) {
+    buffer = SPI_RXB0SIDH;
+  } else if(rx_status & 0x80) {
+    buffer = SPI_RXB1SIDH;
+  } else {
+    return; /* No message in RX buffers */
+  }
+  if(led_status == 0) {
+    SPI_PORT |= LED_PIN;
+  }
+  led_status = 1;
+  if(rx_count > RX_BUFFER_COUNT) {
+    mcp2515_read_rx_buffer(buffer, (uint8_t*)rx_buffer+((tx_first + tx_count) % TX_BUFFER_COUNT, 13);
+    rx_count++;
   }
 }
 
 void mcp2515_loop() {
-  uint8_t status, buffer = 255;
-  if(tx_counter > 0) {
-    /*TODO: Find message to send, tx_buffer[i] */
+  uint8_t status, buffer;
+  if(tx_count > 0) {
     status = mcp2515_read_status();
     if(status & 0x04 == 0x00) {
       buffer = SPI_TXB0SIDH;
@@ -202,16 +223,24 @@ void mcp2515_loop() {
       buffer = SPI_TXB1SIDH;
     } else if(status & 0x40 == 0x00) {
       buffer = SPI_TXB2SIDH;
+    } else {
+      return; /* No free TX buffer found */
     }
-    if(buffer == 255) return;
     
     mcp2515_load_tx_buffer(buffer);
-    for(uint8_t j = 0; j < 5 + (tx_buffer[i].DLC & 0x07); j++) {
-      spi_send(*((*uint8_t)(tx_buffer+i)+j));
+    for(uint8_t j = 0; j < 5 + (tx_buffer[tx_first].DLC & 0x07); j++) {
+      spi_send(*((*uint8_t)(tx_buffer+tx_first)+j));
     }
     SPI_DISABLE();
     mcp2515_write(0x30 + buffer * 0x08, /* Calculate Address of TXBnCTRL */
       TXBCTRL_TXREQ | TXBCTRL_TXP0); /* Mid-Low priority */
-    /*TODO: Free message tx_buffer[i] */
+    tx_count--;
+    if(tx_count == 0) {
+      tx_first = 0;
+    } else {
+      tx_first = (tx_first + 1) % 4;
+    }
   }
+  
+  mcp2515_rx_loop();
 }

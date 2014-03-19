@@ -1,7 +1,7 @@
 #include "mcp2515_spi.h"
 
 void spi_init() {
-  SPI_DDR |= (1 << CS_PIN) | (1 << MOSI_PIN) | (1 << SCK_PIN);
+  SPI_DDR |= (1 << CS_PIN) | (1 << MOSI_PIN) | (1 << SCK_PIN) | (1 << LED_PIN);
   SPI_PORT |= (1 << CS_PIN);
   SPCR |= (1 << SPE) | (1 << MSTR);
 }

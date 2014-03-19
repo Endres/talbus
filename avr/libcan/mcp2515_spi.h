@@ -4,6 +4,7 @@
 
 #define SPI_PORT PORTB
 #define SPI_DDR  DDRB
+#define LED_PIN  PB1
 #define CS_PIN   PB2
 #define MOSI_PIN PB3
 #define MISO_PIN PB4

@@ -24,7 +24,7 @@ void talbus_send(talbus_message* message) {
 }
 
 uint8_t talbus_check(talbus_message* message) {
-  if(rx_counter > 0) {
+  if(rx_count > 0) {
     /* ... check if special message,... parse into pointer if standard message and return */
   }
 }
