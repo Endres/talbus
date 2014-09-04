@@ -34,34 +34,11 @@ void mcp2515_init() {
   /* Configure interrupt */
   spi_send(CANINT_RX0I | CANINT_RX1I); /* CANINTE = RX0IE | RX1IE */
   SPI_DISABLE();
-  //TODO: Configure AVR Interrupt?
-  
-  /* Configure Filters */
-  mcp2515_write_open(RXF0SIDH);
-  spi_send(NODE_ID);
-  spi_send(RXBSIDL_IDE | SC1);
-  spi_send(0x00);
-  spi_send(0x00);
-  spi_send(NODE_ID);
-  spi_send(RXBSIDL_IDE | SC0);
-  spi_send(0x00);
-  spi_send(0x00);
-  SPI_DISABLE();
-  mcp2515_write_open(RXM0SIDH);
-  spi_send(0xFF);
-  spi_send(RXBSIDL_IDE | SC1 | SC0);
-  spi_send(0x00);
-  spi_send(0x00);
-  SPI_DISABLE();
-  
-  #ifdef CONFIGURE_FILTERS()
-    CONFIGURE_FILTERS();
-  #else
-    #warning No RX-Filters in Receive Buffer 1 configured. Device will only receive special CAN-Messages!
-  #endif
+  GICR |= (1 << INT0);
+  sei();
   
   /* Configure RX Control */
-  mcp2515_write(RXB0CTRL, RXB0CTRL_BUKT); /* so okay? */
+  mcp2515_write(RXB0CTRL, RXBCTRL_RXM1 | RXBCTRL_RXM0 | RXB0CTRL_BUKT);
   
   /* Set additional I/O pins and switch to normal mode */
   mcp2515_write_open(BFPCTRL);
@@ -168,9 +145,9 @@ void mcp2515_bit_modify(uint8_t address, uint8_t mask, uint8_t data) {
   SPI_DISABLE();
 }
 
-extern uint8_t rx_count = 0, tx_count = 0;
-extern uint8_t rx_first = 0, tx_first = 0;
-extern can_message rx_buffer[RX_BUFFER_COUNT], tx_buffer[TX_BUFFER_COUNT];
+uint8_t rx_count = 0, tx_count = 0;
+uint8_t rx_first = 0, tx_first = 0;
+can_message rx_buffer[RX_BUFFER_COUNT], tx_buffer[TX_BUFFER_COUNT];
 
 ISR(INT0_vect) {
   mcp2515_rx_loop();
@@ -182,6 +159,23 @@ void mcp2515_queue(can_message msg) {
   }
   tx_buffer[(tx_first + tx_count) % TX_BUFFER_COUNT] = msg;
   tx_count++;
+}
+
+can_message* mcp2515_receive(can_message* dest) {
+  if(rx_count == 0) {
+    return NULL;
+  }
+
+  memcpy(dest, rx_buffer + rx_first, 13);
+
+  rx_count--;
+  if(rx_count == 0) {
+    rx_first = 0;
+  } else {
+    rx_first = (rx_first + 1) % RX_BUFFER_COUNT;
+  }
+
+  return dest;
 }
 
 uint8_t led_status = 0;
@@ -207,14 +201,14 @@ void mcp2515_rx_loop() {
     SPI_PORT |= LED_PIN;
   }
   led_status = 1;
-  if(rx_count > RX_BUFFER_COUNT) {
-    mcp2515_read_rx_buffer(buffer, (uint8_t*)rx_buffer+((tx_first + tx_count) % TX_BUFFER_COUNT, 13);
+  if(rx_count < RX_BUFFER_COUNT) {
+    mcp2515_read_rx_buffer(buffer, (uint8_t*)rx_buffer+((rx_first + rx_count) % RX_BUFFER_COUNT), 13);
     rx_count++;
   }
 }
 
 void mcp2515_loop() {
-  uint8_t status, buffer;
+  uint8_t status, buffer = -1;
   if(tx_count > 0) {
     status = mcp2515_read_status();
     if(status & 0x04 == 0x00) {
@@ -223,22 +217,21 @@ void mcp2515_loop() {
       buffer = SPI_TXB1SIDH;
     } else if(status & 0x40 == 0x00) {
       buffer = SPI_TXB2SIDH;
-    } else {
-      return; /* No free TX buffer found */
     }
-    
-    mcp2515_load_tx_buffer(buffer);
-    for(uint8_t j = 0; j < 5 + (tx_buffer[tx_first].DLC & 0x07); j++) {
-      spi_send(*((*uint8_t)(tx_buffer+tx_first)+j));
-    }
-    SPI_DISABLE();
-    mcp2515_write(0x30 + buffer * 0x08, /* Calculate Address of TXBnCTRL */
-      TXBCTRL_TXREQ | TXBCTRL_TXP0); /* Mid-Low priority */
-    tx_count--;
-    if(tx_count == 0) {
-      tx_first = 0;
-    } else {
-      tx_first = (tx_first + 1) % 4;
+    if(buffer != -1) { /* free TX buffer found */
+      mcp2515_load_tx_buffer(buffer);
+      for(uint8_t j = 0; j < 5 + (tx_buffer[tx_first].DLC & 0x07); j++) {
+        spi_send(*((*uint8_t)(tx_buffer+tx_first)+j));
+      }
+      SPI_DISABLE();
+      mcp2515_write(0x30 + buffer * 0x08, /* Calculate Address of TXBnCTRL */
+        TXBCTRL_TXREQ | TXBCTRL_TXP0); /* Mid-Low priority */
+      tx_count--;
+      if(tx_count == 0) {
+        tx_first = 0;
+      } else {
+        tx_first = (tx_first + 1) % TX_BUFFER_COUNT;
+      }
     }
   }
   

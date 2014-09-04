@@ -227,5 +227,21 @@ typedef struct {
 #define RX_BUFFER_COUNT 4
 #define TX_BUFFER_COUNT 4
 
+void mcp2515_init();
+uint8_t mcp2515_get_input();
+void mcp2515_set_output(uint8_t mask, uint8_t output);
 uint8_t mcp2515_read(uint8_t address);
 void mcp2515_multi_read(uint8_t address, uint8_t* buf, uint8_t length);
+void mcp2515_read_rx_buffer(uint8_t spi_buffer, uint8_t* buf, uint8_t length);
+void mcp2515_write(uint8_t address, uint8_t data);
+void mcp2515_multi_write(uint8_t address, uint8_t* data, uint8_t length);
+void mcp2515_write_open(uint8_t address);
+void mcp2515_load_tx_buffer(uint8_t spi_buffer);
+/* void mcp2515_rts(uint8_t spi_buffer); */
+uint8_t mcp2515_read_status();
+uint8_t mcp2515_rx_status();
+void mcp2515_bit_modify(uint8_t address, uint8_t mask, uint8_t data);
+void mcp2515_queue(can_message msg);
+can_message* mcp2515_receive(can_message* dest);
+void mcp2515_rx_loop();
+void mcp2515_loop();
