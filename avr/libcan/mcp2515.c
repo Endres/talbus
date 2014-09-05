@@ -166,7 +166,7 @@ can_message* mcp2515_receive(can_message* dest) {
     return NULL;
   }
 
-  memcpy(dest, rx_buffer + rx_first, 13);
+  *dest = rx_buffer[rx_first];
 
   rx_count--;
   if(rx_count == 0) {
