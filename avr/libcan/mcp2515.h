@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 #define BFPCTRL   0x0C
 #define TXRTSCTRL 0x0D
 #define CANSTAT   0x0E

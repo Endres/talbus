@@ -1,3 +1,6 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <stdlib.h>
 #include "mcp2515_spi.h"
 #include "mcp2515.h"
 #include "talbus.h"
@@ -34,7 +37,8 @@ void mcp2515_init() {
   /* Configure interrupt */
   spi_send(CANINT_RX0I | CANINT_RX1I); /* CANINTE = RX0IE | RX1IE */
   SPI_DISABLE();
-  GICR |= (1 << INT0);
+  EICRA |= (1 << ISC01);
+  EIMSK |= (1 << INT0);
   sei();
   
   /* Configure RX Control */
@@ -221,7 +225,7 @@ void mcp2515_loop() {
     if(buffer != -1) { /* free TX buffer found */
       mcp2515_load_tx_buffer(buffer);
       for(uint8_t j = 0; j < 5 + (tx_buffer[tx_first].DLC & 0x07); j++) {
-        spi_send(*((*uint8_t)(tx_buffer+tx_first)+j));
+        spi_send(*((uint8_t*)(tx_buffer+tx_first)+j));
       }
       SPI_DISABLE();
       mcp2515_write(0x30 + buffer * 0x08, /* Calculate Address of TXBnCTRL */

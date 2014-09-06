@@ -1,4 +1,5 @@
 #include "config.h"
+#include <stdlib.h>
 #include <talbus.h>
 #include <mcp2515.h>
 

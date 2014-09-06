@@ -1,7 +1,8 @@
 #include <avr/wdt.h>
+#include <stdlib.h>
 #include "talbus.h"
 #include "mcp2515.h"
-#include "../config.h"
+#include "../led_test_node/config.h"
 
 void talbus_send(talbus_message* message) {
   can_message msg;
@@ -51,13 +52,14 @@ talbus_message* talbus_receive(talbus_message* message) {
 
     if(message->protocol == PROTO_MGMT) { /* Handle management protocol static */
       if(message->address == CONFIG_ADDRESS && message->direction == DIR_TO_ADDRESS) {
+        uint8_t dest_address;
         switch(message->data[0]) {
           case FUNC_MGMT_PING:
-            uint8_t dest_address = message->data[1];
+            dest_address = message->data[1];
             message->data[1] = message->address;
             message->address = dest_address;
             message->data[0] = FUNC_MGMT_PONG;
-            talbus_send(&message);
+            talbus_send(message);
             break;
           case FUNC_MGMT_RESET:
             wdt_enable(0);

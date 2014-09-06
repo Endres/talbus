@@ -1,6 +1,4 @@
-#ifndef _AVR_IO_H_
-  #include <avr/io.h>
-#endif
+#include <stdint.h>
 
 #define SPI_PORT PORTB
 #define SPI_DDR  DDRB

@@ -1,3 +1,4 @@
+#include <avr/io.h>
 #include "mcp2515_spi.h"
 
 void spi_init() {
