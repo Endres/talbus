@@ -12,7 +12,8 @@ typedef enum {
 	PROTO_MGMT			= 0,
 	PROTO_ROOM			= 1,
 	PROTO_MULTIMEDIA	= 2,
-	PROTO_MESSAGE		= 3
+	PROTO_MESSAGE		= 3,
+	PROTO_DEBUG			= 4
 } talbus_protocols;
 
 typedef struct {

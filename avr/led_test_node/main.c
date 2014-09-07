@@ -27,6 +27,18 @@ int main() {
 
 		talbus_message message;
 		if(talbus_receive(&message) != NULL) {
+			/* Debug */
+			can_message msg;
+			msg.SIDH = 0x01;
+			msg.SIDL = (PROTO_DEBUG << 5);
+			msg.DLC = 5;
+			msg.data[0] = message.address;
+			msg.data[1] = message.protocol;
+			msg.data[2] = message.direction;
+			msg.data[3] = message.data[0];
+			msg.data[4] = message.data[1];
+			mcp2515_queue(msg);
+
 			if(message.address == CONFIG_ADDRESS && message.direction == DIR_TO_ADDRESS) {
 				if(message.protocol == PROTO_ROOM) {
 					if(message.data[0] == FUNC_ROOM_LIGHT_ON) {

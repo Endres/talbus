@@ -1,5 +1,6 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <util/delay.h>
 #include <stdlib.h>
 #include "mcp2515_spi.h"
 #include "mcp2515.h"
@@ -14,10 +15,8 @@ void mcp2515_init() {
   spi_send(SPI_RESET);
   SPI_DISABLE();
   
-  /* (maybe!) Wait some cycles */
-  /*for(uint8_t i = 0; i < 64; i++) {
-    __asm__("nop");
-  }*/
+  /* Wait some cycles */
+  _delay_ms(10);
   
   /* Configure Clock */
   #if F_MCP == 8000000
@@ -120,7 +119,11 @@ void mcp2515_load_tx_buffer(uint8_t spi_buffer) {
   spi_send(SPI_LOADBUFFER | spi_buffer);
 }
 
-/* void mcp2515_rts(uint8_t spi_buffer); */
+void mcp2515_rts(uint8_t spi_buffer) {
+  SPI_ENABLE();
+  spi_send(SPI_RTS | spi_buffer);
+  SPI_DISABLE();
+}
 
 uint8_t mcp2515_read_status() {
   uint8_t data;
@@ -202,7 +205,7 @@ void mcp2515_rx_loop() {
     return; /* No message in RX buffers */
   }
   if(led_status == 0) {
-    SPI_PORT |= LED_PIN;
+    SPI_PORT |= (1 << LED_PIN);
   }
   led_status = 1;
   if(rx_count < RX_BUFFER_COUNT) {
@@ -215,11 +218,11 @@ void mcp2515_loop() {
   uint8_t status, buffer = -1;
   if(tx_count > 0) {
     status = mcp2515_read_status();
-    if(status & 0x04 == 0x00) {
+    if(!(status & 0x04)) {
       buffer = SPI_TXB0SIDH;
-    } else if(status & 0x10 == 0x00) {
+    } else if(!(status & 0x10)) {
       buffer = SPI_TXB1SIDH;
-    } else if(status & 0x40 == 0x00) {
+    } else if(!(status & 0x40)) {
       buffer = SPI_TXB2SIDH;
     }
     if(buffer != -1) { /* free TX buffer found */
@@ -228,8 +231,7 @@ void mcp2515_loop() {
         spi_send(*((uint8_t*)(tx_buffer+tx_first)+j));
       }
       SPI_DISABLE();
-      mcp2515_write(0x30 + buffer * 0x08, /* Calculate Address of TXBnCTRL */
-        TXBCTRL_TXREQ | TXBCTRL_TXP0); /* Mid-Low priority */
+      mcp2515_rts(buffer >> 1); /* Select TXBn */
       tx_count--;
       if(tx_count == 0) {
         tx_first = 0;
