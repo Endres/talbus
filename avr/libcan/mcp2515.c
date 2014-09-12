@@ -188,29 +188,33 @@ can_message* mcp2515_receive(can_message* dest) {
 uint8_t led_status = 0;
 
 void mcp2515_rx_loop() {
-  uint8_t rx_status = mcp2515_rx_status();
-  uint8_t buffer;
-  if(led_status > 0) {
-    led_status++;
-    if(led_status == 0) {
-      SPI_PORT &= ~(1 << LED_PIN);
+  while(1) {
+    uint8_t rx_status = mcp2515_rx_status();
+    uint8_t buffer;
+    if(led_status > 0) {
+      led_status++;
+      if(led_status == 0) {
+        SPI_PORT &= ~(1 << LED_PIN);
+      }
     }
-  }
-  
-  if(rx_status & 0x40) {
-    buffer = SPI_RXB0SIDH;
-  } else if(rx_status & 0x80) {
-    buffer = SPI_RXB1SIDH;
-  } else {
-    return; /* No message in RX buffers */
-  }
-  if(led_status == 0) {
-    SPI_PORT |= (1 << LED_PIN);
-  }
-  led_status = 1;
-  if(rx_count < RX_BUFFER_COUNT) {
-    mcp2515_read_rx_buffer(buffer, (uint8_t*)rx_buffer+((rx_first + rx_count) % RX_BUFFER_COUNT), 13);
-    rx_count++;
+    
+    if(rx_status & 0x40) {
+      buffer = SPI_RXB0SIDH;
+    } else if(rx_status & 0x80) {
+      buffer = SPI_RXB1SIDH;
+    } else {
+      return; /* No message in RX buffers */
+    }
+    if(led_status == 0) {
+      SPI_PORT |= (1 << LED_PIN);
+    }
+    led_status = 1;
+    if(rx_count < RX_BUFFER_COUNT) {
+      mcp2515_read_rx_buffer(buffer, (uint8_t*)&rx_buffer[(rx_first + rx_count) % RX_BUFFER_COUNT], 13);
+      rx_count++;
+    } else {
+      return; /* No free buffer left, discard this message */
+    }
   }
 }
 
@@ -228,10 +232,12 @@ void mcp2515_loop() {
     if(buffer != -1) { /* free TX buffer found */
       mcp2515_load_tx_buffer(buffer);
       for(uint8_t j = 0; j < 5 + (tx_buffer[tx_first].DLC & 0x07); j++) {
-        spi_send(*((uint8_t*)(tx_buffer+tx_first)+j));
+        spi_send(*((uint8_t*)(&tx_buffer[tx_first])+j));
       }
       SPI_DISABLE();
-      mcp2515_rts(buffer >> 1); /* Select TXBn */
+      //mcp2515_rts(buffer >> 1); /* Select TXBn */
+      mcp2515_write(0x30 + buffer * 0x08, /* Calculate Address of TXBnCTRL */
+        TXBCTRL_TXREQ | TXBCTRL_TXP0); /* Mid-Low priority */
       tx_count--;
       if(tx_count == 0) {
         tx_first = 0;
@@ -241,5 +247,7 @@ void mcp2515_loop() {
     }
   }
   
+  EIMSK &= ~(1 << INT0); /* No RX-interrupts should happen here! */
   mcp2515_rx_loop();
+  EIMSK |= (1 << INT0);
 }

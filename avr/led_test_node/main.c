@@ -6,7 +6,7 @@
 #include <talbus.h>
 #include <mcp2515.h>
 
-uint8_t led_status = 0;
+uint8_t led_status2 = 0;
 uint16_t uptime = 0;
 uint8_t uptime_5 = 0;
 
@@ -22,33 +22,21 @@ int main() {
 
 	mcp2515_init();
 
+	talbus_message message;
 	while(1) {
 		mcp2515_loop();
 
-		talbus_message message;
 		if(talbus_receive(&message) != NULL) {
-			/* Debug */
-			can_message msg;
-			msg.SIDH = 0x01;
-			msg.SIDL = (PROTO_DEBUG << 5);
-			msg.DLC = 5;
-			msg.data[0] = message.address;
-			msg.data[1] = message.protocol;
-			msg.data[2] = message.direction;
-			msg.data[3] = message.data[0];
-			msg.data[4] = message.data[1];
-			mcp2515_queue(msg);
-
 			if(message.address == CONFIG_ADDRESS && message.direction == DIR_TO_ADDRESS) {
 				if(message.protocol == PROTO_ROOM) {
 					if(message.data[0] == FUNC_ROOM_LIGHT_ON) {
 						if(message.data[1] == 0x00) {
-							led_status = 1;
+							led_status2 = 1;
 							PORTB |= _BV(PB1);
 						}
 					} else if(message.data[0] == FUNC_ROOM_LIGHT_OFF) {
 						if(message.data[1] == 0x00) {
-							led_status = 0;
+							led_status2 = 0;
 							PORTB &= ~_BV(PB1);
 						}
 					}
@@ -59,7 +47,7 @@ int main() {
 		if(uptime_5 >= 5) {
 			uptime += uptime_5/5;
 			uptime_5 %= 5;
-			if(uptime % 5 == 0) {
+			if(uptime % 60 == 0) {
 				talbus_message msg;
 				msg.address = CONFIG_ADDRESS;
 				msg.protocol = PROTO_ROOM;
@@ -76,7 +64,7 @@ int main() {
 }
 
 ISR(TIMER1_COMPA_vect) {
-	if(led_status == 0) {
+	if(led_status2 == 0) {
 		PORTB &= ~_BV(PB1); /* Disable debug LED */
 	}
 	uptime_5++;
